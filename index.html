@@ -1,0 +1,971 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI-Enhanced Phishing Email Detection — Graduation Project</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+
+/* ============================================================
+   DESIGN TOKENS
+   A "security console" palette: deep navy-charcoal background,
+   amber for risk/alert signal, teal for legitimate/clear signal.
+   Monospace for anything that reads like system output; a plain
+   sans for anything a human is meant to just read.
+   ============================================================ */
+:root{
+  --bg:        #0F141B;
+  --surface:   #161D27;
+  --surface-2: #1C2531;
+  --border:    #2A3441;
+  --text:      #E7E5DE;
+  --text-dim:  #93A0B0;
+  --amber:     #E2A63B;
+  --amber-dim: #6B5427;
+  --teal:      #4FA893;
+  --teal-dim:  #24443D;
+  --red:       #D9636B;
+
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+}
+
+*{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; }
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:var(--font-sans);
+  line-height:1.55;
+}
+@media (prefers-reduced-motion: reduce){
+  html{ scroll-behavior:auto; }
+  *{ animation-duration:0.01ms !important; transition-duration:0.01ms !important; }
+}
+
+a{ color:var(--amber); }
+::selection{ background:var(--amber); color:#161D27; }
+
+.wrap{ max-width:1080px; margin:0 auto; padding:0 24px; }
+
+/* ---- shared bits ---- */
+.eyebrow{
+  font-family:var(--font-mono);
+  font-size:12px;
+  letter-spacing:0.14em;
+  text-transform:uppercase;
+  color:var(--amber);
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.eyebrow::before{
+  content:"";
+  width:7px; height:7px;
+  background:var(--amber);
+  border-radius:1px;
+  display:inline-block;
+}
+h1,h2,h3{
+  font-family:var(--font-mono);
+  font-weight:600;
+  margin:0;
+  letter-spacing:-0.01em;
+}
+.section{ padding:88px 0; border-top:1px solid var(--border); }
+.section > .kicker{ margin-bottom:14px; }
+.section h2{ font-size:28px; margin-bottom:14px; }
+.section .lede{ color:var(--text-dim); max-width:640px; font-size:16px; margin-bottom:44px; }
+.mono{ font-family:var(--font-mono); }
+
+/* ============================================================
+   NAV
+   ============================================================ */
+header.topbar{
+  position:sticky; top:0; z-index:50;
+  background:rgba(15,20,27,0.88);
+  backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--border);
+}
+.topbar .wrap{
+  display:flex; align-items:center; justify-content:space-between;
+  height:56px;
+}
+.topbar .brand{
+  font-family:var(--font-mono); font-size:13px; font-weight:600;
+  color:var(--text); text-decoration:none; letter-spacing:0.02em;
+}
+.topbar .brand span{ color:var(--amber); }
+.topbar nav{ display:flex; gap:26px; }
+.topbar nav a{
+  font-family:var(--font-mono); font-size:12px; color:var(--text-dim);
+  text-decoration:none; letter-spacing:0.03em;
+}
+.topbar nav a:hover{ color:var(--text); }
+@media (max-width:720px){ .topbar nav{ display:none; } }
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.hero{ padding:76px 0 90px; }
+.hero-grid{
+  display:grid; grid-template-columns:1.05fr 0.95fr; gap:56px; align-items:start;
+}
+@media (max-width:920px){ .hero-grid{ grid-template-columns:1fr; } }
+
+.hero h1{
+  font-size:clamp(30px,4.4vw,46px);
+  line-height:1.08;
+  margin:16px 0 20px;
+}
+.hero h1 .accent{ color:var(--amber); }
+.hero p.lede{ color:var(--text-dim); font-size:16.5px; max-width:520px; margin-bottom:28px; }
+
+.stat-row{ display:flex; gap:0; margin-top:34px; border-top:1px solid var(--border); }
+.stat{ flex:1; padding:16px 18px 0; border-right:1px solid var(--border); }
+.stat:last-child{ border-right:none; }
+.stat .num{ font-family:var(--font-mono); font-size:22px; color:var(--amber); font-weight:600; }
+.stat .label{ font-size:12px; color:var(--text-dim); margin-top:2px; }
+
+.byline{
+  margin-top:30px; padding-top:20px; border-top:1px solid var(--border);
+  font-size:13px; color:var(--text-dim); font-family:var(--font-mono);
+}
+.byline b{ color:var(--text); font-weight:500; }
+
+/* ============================================================
+   CONSOLE (the signature interactive element)
+   ============================================================ */
+.console{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:6px;
+  overflow:hidden;
+  box-shadow:0 30px 60px -30px rgba(0,0,0,0.6);
+}
+.console-bar{
+  display:flex; align-items:center; gap:8px;
+  padding:10px 14px;
+  background:var(--surface-2);
+  border-bottom:1px solid var(--border);
+  font-family:var(--font-mono); font-size:11.5px; color:var(--text-dim);
+}
+.console-bar .dots{ display:flex; gap:6px; margin-right:6px; }
+.console-bar .dots i{ width:8px; height:8px; border-radius:50%; background:#3A4658; display:inline-block; }
+.console-bar .status{ margin-left:auto; display:flex; align-items:center; gap:6px; font-size:11px; }
+.console-bar .status .light{ width:7px; height:7px; border-radius:50%; background:var(--text-dim); display:inline-block; }
+.console-bar .status.live .light{ background:var(--teal); box-shadow:0 0 6px var(--teal); }
+.console-bar .status.local .light{ background:var(--amber); }
+.console-body{ padding:18px; }
+
+.console label{
+  display:block; font-family:var(--font-mono); font-size:11px;
+  color:var(--text-dim); letter-spacing:0.05em; text-transform:uppercase;
+  margin-bottom:6px;
+}
+.sample-row{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+.sample-btn{
+  font-family:var(--font-mono); font-size:11.5px;
+  background:var(--surface-2); color:var(--text-dim);
+  border:1px solid var(--border); border-radius:4px;
+  padding:6px 10px; cursor:pointer;
+}
+.sample-btn:hover{ color:var(--text); border-color:#3A4658; }
+
+textarea#emailInput{
+  width:100%; min-height:130px; resize:vertical;
+  background:#0F141B; color:var(--text);
+  border:1px solid var(--border); border-radius:4px;
+  font-family:var(--font-mono); font-size:12.5px; line-height:1.6;
+  padding:12px; margin-bottom:12px;
+}
+textarea#emailInput:focus{ outline:2px solid var(--amber); outline-offset:1px; }
+
+.field-row{ display:flex; gap:10px; margin-bottom:14px; }
+.field-row > div{ flex:1; }
+select#senderSelect, select#modelSelect{
+  width:100%; background:#0F141B; color:var(--text);
+  border:1px solid var(--border); border-radius:4px;
+  font-family:var(--font-mono); font-size:12.5px; padding:9px 10px;
+}
+select#senderSelect:focus, select#modelSelect:focus{ outline:2px solid var(--amber); outline-offset:1px; }
+
+button#analyzeBtn{
+  width:100%;
+  background:var(--amber); color:#161200;
+  border:none; border-radius:4px;
+  font-family:var(--font-mono); font-weight:600; font-size:13px;
+  letter-spacing:0.03em;
+  padding:11px; cursor:pointer;
+}
+button#analyzeBtn:hover{ background:#EEB65B; }
+button#analyzeBtn:focus-visible{ outline:2px solid var(--text); outline-offset:2px; }
+
+/* ---- results ---- */
+#result{ margin-top:18px; border-top:1px dashed var(--border); padding-top:18px; display:none; }
+#result.show{ display:block; }
+
+.verdict-row{ display:flex; align-items:center; gap:12px; margin-bottom:16px; }
+.verdict-badge{
+  font-family:var(--font-mono); font-weight:700; font-size:13px;
+  padding:5px 10px; border-radius:4px; letter-spacing:0.03em;
+}
+.verdict-badge.legit{ background:var(--teal-dim); color:var(--teal); }
+.verdict-badge.suspicious{ background:var(--amber-dim); color:var(--amber); }
+.verdict-badge.phishing{ background:#4A2328; color:var(--red); }
+.verdict-conf{ font-family:var(--font-mono); font-size:12px; color:var(--text-dim); }
+
+.meter-block{ margin-bottom:12px; }
+.meter-label{
+  display:flex; justify-content:space-between;
+  font-family:var(--font-mono); font-size:11.5px; color:var(--text-dim);
+  margin-bottom:5px;
+}
+.meter-label b{ color:var(--text); font-weight:500; }
+.meter-track{ height:6px; background:var(--surface-2); border-radius:3px; overflow:hidden; }
+.meter-fill{ height:100%; border-radius:3px; width:0%; transition:width 0.5s ease; }
+.meter-fill.content{ background:var(--amber); }
+.meter-fill.behavior{ background:var(--red); }
+
+.feature-list{
+  font-family:var(--font-mono); font-size:11.5px; color:var(--text-dim);
+  margin-top:16px; padding-top:14px; border-top:1px solid var(--border);
+  display:grid; grid-template-columns:1fr 1fr; gap:6px 18px;
+}
+.feature-list div span{ color:var(--text); }
+.feature-list .hit{ color:var(--amber); }
+
+/* ============================================================
+   PROBLEM
+   ============================================================ */
+.problem-grid{ display:grid; grid-template-columns:1fr 1fr; gap:30px; }
+@media (max-width:760px){ .problem-grid{ grid-template-columns:1fr; } }
+.problem-card{
+  background:var(--surface); border:1px solid var(--border); border-radius:6px;
+  padding:22px;
+}
+.problem-card .k{ font-family:var(--font-mono); font-size:26px; color:var(--amber); font-weight:600; }
+.problem-card p{ color:var(--text-dim); font-size:14px; margin:8px 0 0; }
+
+/* ============================================================
+   AI vs AI
+   ============================================================ */
+.vs-grid{
+  display:grid; grid-template-columns:1fr 44px 1fr; gap:0; align-items:stretch;
+}
+@media (max-width:820px){ .vs-grid{ grid-template-columns:1fr; } }
+.vs-col{
+  background:var(--surface); border:1px solid var(--border); border-radius:6px;
+  padding:24px;
+}
+.vs-col.attack{ border-top:3px solid var(--red); }
+.vs-col.defense{ border-top:3px solid var(--teal); }
+.vs-col .tag{
+  font-family:var(--font-mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.08em;
+  margin-bottom:10px; display:block;
+}
+.vs-col.attack .tag{ color:var(--red); }
+.vs-col.defense .tag{ color:var(--teal); }
+.vs-col h4{ font-family:var(--font-mono); font-size:17px; margin:0 0 14px; }
+.vs-col ul{ margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:12px; }
+.vs-col li{ font-size:13.5px; color:var(--text-dim); padding-left:16px; position:relative; }
+.vs-col.attack li::before{ content:"—"; position:absolute; left:0; color:var(--red); }
+.vs-col.defense li::before{ content:"—"; position:absolute; left:0; color:var(--teal); }
+.vs-col li b{ color:var(--text); font-weight:500; }
+.vs-divider{
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-mono); font-size:11px; color:var(--text-dim);
+}
+.vs-divider span{
+  writing-mode:vertical-rl; letter-spacing:0.1em;
+}
+@media (max-width:820px){
+  .vs-divider{ padding:14px 0; }
+  .vs-divider span{ writing-mode:horizontal-tb; }
+}
+
+.future-callout{
+  margin-top:24px; padding:16px 18px;
+  background:var(--surface-2); border:1px solid var(--border); border-left:3px solid var(--amber);
+  border-radius:4px; font-size:13.5px; color:var(--text-dim);
+}
+.future-callout b{ color:var(--text); }
+
+/* ============================================================
+   ARCHITECTURE (pipeline)
+   ============================================================ */
+.pipeline{
+  display:grid; grid-template-columns:repeat(4,1fr); gap:0;
+  border:1px solid var(--border); border-radius:6px; overflow:hidden;
+}
+@media (max-width:820px){ .pipeline{ grid-template-columns:1fr; } }
+.pstep{
+  background:var(--surface); padding:22px 18px;
+  border-right:1px solid var(--border);
+  position:relative;
+}
+.pstep:last-child{ border-right:none; }
+@media (max-width:820px){ .pstep{ border-right:none; border-bottom:1px solid var(--border); } }
+.pstep .pnum{ font-family:var(--font-mono); color:var(--text-dim); font-size:12px; }
+.pstep h4{ font-family:var(--font-mono); font-size:14px; margin:8px 0 6px; color:var(--text); }
+.pstep p{ font-size:12.5px; color:var(--text-dim); margin:0; }
+.pstep::after{
+  content:"→"; position:absolute; right:-11px; top:50%; transform:translateY(-50%);
+  color:var(--text-dim); font-size:14px; z-index:2;
+}
+.pstep:last-child::after{ content:""; }
+@media (max-width:820px){ .pstep::after{ content:"↓"; right:auto; left:18px; top:auto; bottom:-11px; transform:none; } }
+
+.module-row{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:36px; }
+@media (max-width:820px){ .module-row{ grid-template-columns:1fr; } }
+.module-card{
+  background:var(--surface-2); border:1px solid var(--border); border-radius:6px; padding:20px;
+}
+.module-card .tag{
+  font-family:var(--font-mono); font-size:10.5px; text-transform:uppercase; letter-spacing:0.08em;
+  color:var(--teal); margin-bottom:8px; display:inline-block;
+}
+.module-card h4{ font-family:var(--font-mono); font-size:15px; margin:0 0 8px; }
+.module-card p{ font-size:13px; color:var(--text-dim); margin:0; }
+
+/* ============================================================
+   STACK / MODELS
+   ============================================================ */
+.stack-table{ width:100%; border-collapse:collapse; font-size:13.5px; }
+.stack-table th{
+  text-align:left; font-family:var(--font-mono); font-size:11px; text-transform:uppercase;
+  letter-spacing:0.06em; color:var(--text-dim); padding:10px 12px; border-bottom:1px solid var(--border);
+}
+.stack-table td{ padding:12px; border-bottom:1px solid var(--border); vertical-align:top; }
+.stack-table tr:last-child td{ border-bottom:none; }
+.stack-table td.layer{ font-family:var(--font-mono); color:var(--amber); white-space:nowrap; }
+.stack-table td.tech{ color:var(--text); white-space:nowrap; }
+.stack-table td.purpose{ color:var(--text-dim); }
+
+.model-chips{ display:flex; flex-wrap:wrap; gap:10px; margin-top:8px; }
+.chip{
+  font-family:var(--font-mono); font-size:12px; color:var(--text);
+  background:var(--surface-2); border:1px solid var(--border);
+  padding:7px 12px; border-radius:20px;
+}
+.chip b{ color:var(--amber); font-weight:600; }
+
+/* ============================================================
+   METRICS / RESULTS STATUS
+   ============================================================ */
+.metric-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:1px; background:var(--border); border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+@media (max-width:760px){ .metric-grid{ grid-template-columns:repeat(2,1fr); } }
+.metric-cell{ background:var(--surface); padding:18px 14px; }
+.metric-cell .name{ font-family:var(--font-mono); font-size:12px; color:var(--text); margin-bottom:8px; }
+.metric-cell .status{ font-family:var(--font-mono); font-size:11px; color:var(--text-dim); }
+.metric-cell .status.pending::before{ content:"○ "; color:var(--amber); }
+
+.pending-note{
+  margin-top:22px; padding:14px 16px; background:var(--surface); border:1px solid var(--border);
+  border-left:3px solid var(--amber); border-radius:4px; font-size:13px; color:var(--text-dim);
+}
+
+/* ============================================================
+   OBJECTIVES
+   ============================================================ */
+.obj-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:0; border-top:1px solid var(--border); }
+.obj-item{
+  display:flex; gap:16px; align-items:flex-start;
+  padding:16px 0; border-bottom:1px solid var(--border);
+}
+.obj-check{
+  flex:0 0 auto; width:20px; height:20px; border-radius:50%;
+  background:var(--teal-dim); color:var(--teal);
+  display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-family:var(--font-mono); margin-top:2px;
+}
+.obj-item p{ margin:0; font-size:14px; color:var(--text-dim); }
+.obj-item p b{ color:var(--text); font-weight:500; }
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+footer{ padding:44px 0 60px; border-top:1px solid var(--border); }
+footer .wrap{ display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:20px; }
+footer .foot-left{ font-family:var(--font-mono); font-size:12px; color:var(--text-dim); line-height:1.8; }
+footer .foot-left b{ color:var(--text); }
+footer .foot-right{ font-family:var(--font-mono); font-size:11px; color:#4A5568; text-align:right; }
+
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap">
+    <a href="#top" class="brand">PHISH<span>GUARD</span>_AI</a>
+    <nav>
+      <a href="#console">Try it</a>
+      <a href="#ai-vs-ai">AI vs. AI</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#models">Models</a>
+      <a href="#results">Evaluation</a>
+      <a href="#objectives">Objectives</a>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ============================================================
+       HERO + LIVE CONSOLE
+       ============================================================ -->
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <div class="eyebrow">B.Sc. Cybersecurity — Graduation Project</div>
+        <h1>Phishing detection that watches <span class="accent">what senders do</span>, not just what emails say.</h1>
+        <p class="lede">
+          Most filters only read the message. This system pairs a content-based
+          machine learning classifier with a Sender Behavior Profiling Engine that
+          learns each sender's normal rhythm — and flags the moment a "trusted"
+          account starts acting like someone else.
+        </p>
+
+        <div class="stat-row">
+          <div class="stat"><div class="num">2</div><div class="label">Detection signals fused<br>content + behavior</div></div>
+          <div class="stat"><div class="num">4</div><div class="label">Classifiers compared<br>LR · RF · SVM · LSTM</div></div>
+          <div class="stat"><div class="num">2</div><div class="label">Datasets<br>Enron · UCI Phishing URLs</div></div>
+        </div>
+
+        <div class="byline">
+          <b>AI-Enhanced Phishing Email Detection</b> — Amman Arab University, College of IT<br>
+          Moutasim Hassan Al-Shawaheen · Khaled Al-Shahrani — Supervised by Dr. Kamal Alieyan
+        </div>
+      </div>
+
+      <div id="console" class="console">
+        <div class="console-bar">
+          <div class="dots"><i></i><i></i><i></i></div>
+          triage_console.py — live demo
+          <span id="backendStatus" class="status local"><span class="light"></span>checking backend…</span>
+        </div>
+        <div class="console-body">
+
+          <label for="senderSelect">Sender profile</label>
+          <div class="field-row">
+            <div>
+              <select id="senderSelect">
+                <option value="known_hr">hr@trilocor-corp.com — 240 emails on file</option>
+                <option value="known_it">it-support@trilocor-corp.com — 180 emails on file</option>
+                <option value="unknown">unlisted-sender@external.com — no history</option>
+              </select>
+            </div>
+            <div>
+              <select id="modelSelect">
+                <option value="logistic_regression">Logistic Regression</option>
+                <option value="svm">SVM</option>
+                <option value="random_forest">Random Forest</option>
+                <option value="lstm">LSTM</option>
+              </select>
+            </div>
+          </div>
+
+          <label for="emailInput">Email body</label>
+          <div class="sample-row">
+            <button class="sample-btn" data-sample="legit">Load: routine email</button>
+            <button class="sample-btn" data-sample="phish">Load: obvious phishing</button>
+            <button class="sample-btn" data-sample="compromised">Load: compromised account</button>
+          </div>
+          <textarea id="emailInput" placeholder="Paste an email body here, or load a sample above…"></textarea>
+
+          <button id="analyzeBtn">▶ Run classification</button>
+
+          <div id="result">
+            <div class="verdict-row">
+              <span id="verdictBadge" class="verdict-badge legit">LEGITIMATE</span>
+              <span id="verdictConf" class="verdict-conf">confidence 0%</span>
+            </div>
+
+            <div class="meter-block">
+              <div class="meter-label"><span>Content risk</span><b id="contentScoreLabel">0</b></div>
+              <div class="meter-track"><div id="contentMeter" class="meter-fill content"></div></div>
+            </div>
+            <div class="meter-block">
+              <div class="meter-label"><span>Sender behavior anomaly</span><b id="behaviorScoreLabel">0</b></div>
+              <div class="meter-track"><div id="behaviorMeter" class="meter-fill behavior"></div></div>
+            </div>
+
+            <div id="featureList" class="feature-list"></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       PROBLEM
+       ============================================================ -->
+  <section class="section">
+    <div class="wrap">
+      <div class="eyebrow kicker">The gap</div>
+      <h2>Content filters miss the attacks that don't look wrong</h2>
+      <p class="lede">Phishing emails account for a large share of breaches — and a growing share of them come from accounts that were never technically "spoofed."</p>
+
+      <div class="problem-grid">
+        <div class="problem-card">
+          <div class="k">65%</div>
+          <p>of phishing-related attacks are delivered by email — still the cheapest, widest-reaching channel available to attackers.</p>
+        </div>
+        <div class="problem-card">
+          <div class="k">36%</div>
+          <p>of organizational data breaches trace back to a phishing email, often one that passed content filters because it came from a legitimate, compromised inbox.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       AI vs AI
+       ============================================================ -->
+  <section class="section" id="ai-vs-ai">
+    <div class="wrap">
+      <div class="eyebrow kicker">The escalation</div>
+      <h2>Generative AI raised the bar for both sides</h2>
+      <p class="lede">The same models that write convincing marketing copy also write convincing phishing emails — which is exactly why detection had to stop relying on content alone.</p>
+
+      <div class="vs-grid">
+        <div class="vs-col attack">
+          <span class="tag">What attackers gained</span>
+          <h4>AI-generated phishing</h4>
+          <ul>
+            <li>Generative language models produce <b>personalized, human-sounding</b> phishing content at scale, no longer limited by an attacker's own writing ability.</li>
+            <li>Text is <b>grammatically clean and context-aware</b>, removing the spelling and phrasing errors that keyword and rule-based filters used to catch.</li>
+            <li>Campaigns increasingly pair AI-written text with <b>compromised legitimate accounts</b>, so the message inherits a real sender's trust and history.</li>
+            <li>Persuasion-aware generation techniques deliberately mimic authority, urgency, and rapport — the same psychological levers as human social engineering.</li>
+          </ul>
+        </div>
+
+        <div class="vs-divider"><span>VS</span></div>
+
+        <div class="vs-col defense">
+          <span class="tag">How detection is responding</span>
+          <h4>Context- and behavior-aware defense</h4>
+          <ul>
+            <li>Research has moved toward <b>transformer-based models</b> (BERT, DistilBERT) that read meaning and context rather than matching surface patterns.</li>
+            <li>A two-stage framework built around <b>persuasion principles</b> reached ~94% accuracy and 98% AUC specifically on AI-generated phishing emails.</li>
+            <li>Hybrid approaches combining <b>BERT with TF-IDF</b> improve accuracy further, especially on smaller, harder-to-generalize datasets.</li>
+            <li>This project's answer is <b>sender behavior profiling</b>: even a perfectly-written AI email still has to come from somewhere — and a sudden shift in a sender's rhythm is much harder for a language model to fake.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="future-callout">
+        <b>Where this project sits today:</b> the content classifier uses TF-IDF, word embeddings, and lexical URL features rather than a transformer. Swapping in a BERT-style model to catch fluent, AI-generated phishing text — alongside the existing behavioral engine — is named directly as future work (Section 6.6).
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       ARCHITECTURE
+       ============================================================ -->
+  <section class="section" id="architecture">
+    <div class="wrap">
+      <div class="eyebrow kicker">System design</div>
+      <h2>Four stages, one final decision</h2>
+      <p class="lede">A Flask application coordinates the pipeline: every email is parsed, scored two different ways, then fused into a single verdict.</p>
+
+      <div class="pipeline">
+        <div class="pstep">
+          <div class="pnum">01</div>
+          <h4>Ingest &amp; parse</h4>
+          <p>Splits a raw email into header metadata, body text, and embedded URLs. Malformed messages are rejected before they reach scoring.</p>
+        </div>
+        <div class="pstep">
+          <div class="pnum">02</div>
+          <h4>Extract features</h4>
+          <p>TF-IDF and word embeddings for text, lexical checks for URLs, and per-sender metadata (frequency, timing, tone).</p>
+        </div>
+        <div class="pstep">
+          <div class="pnum">03</div>
+          <h4>Score in parallel</h4>
+          <p>A trained classifier scores content. The profiling engine compares behavior to the sender's historical baseline.</p>
+        </div>
+        <div class="pstep">
+          <div class="pnum">04</div>
+          <h4>Fuse &amp; report</h4>
+          <p>Content label and anomaly score are merged into one decision, logged, and shown on the analyst dashboard.</p>
+        </div>
+      </div>
+
+      <div class="module-row">
+        <div class="module-card">
+          <span class="tag">Module</span>
+          <h4>Feature Extraction Module</h4>
+          <p>Converts raw email content and URLs into a structured feature vector using TF-IDF, embeddings, and lexical URL analysis.</p>
+        </div>
+        <div class="module-card">
+          <span class="tag">Module</span>
+          <h4>Machine Learning Classifier</h4>
+          <p>Trains and evaluates candidate models — Logistic Regression, Random Forest, SVM, and LSTM — on the content feature vector.</p>
+        </div>
+        <div class="module-card">
+          <span class="tag">Module</span>
+          <h4>Sender Behavior Profiling Engine</h4>
+          <p>Builds a rolling baseline per sender and scores deviations with Z-score analysis and Isolation Forest.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       STACK & MODELS
+       ============================================================ -->
+  <section class="section" id="models">
+    <div class="wrap">
+      <div class="eyebrow kicker">Under the hood</div>
+      <h2>Technology stack</h2>
+      <p class="lede">Every layer uses widely-available, well-documented tools — chosen so each module can be built and tested independently.</p>
+
+      <table class="stack-table">
+        <thead>
+          <tr><th>Layer</th><th>Technology</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="layer">Runtime</td><td class="tech">Python 3</td><td class="purpose">Core implementation language for every component</td></tr>
+          <tr><td class="layer">Web</td><td class="tech">Flask</td><td class="purpose">Presentation layer, routing, API endpoints</td></tr>
+          <tr><td class="layer">ML</td><td class="tech">Scikit-learn</td><td class="purpose">Logistic Regression, Random Forest, SVM classifiers</td></tr>
+          <tr><td class="layer">Deep learning</td><td class="tech">TensorFlow / Keras</td><td class="purpose">LSTM sequence model for content classification</td></tr>
+          <tr><td class="layer">NLP</td><td class="tech">NLTK / spaCy</td><td class="purpose">Tokenization, preprocessing, TF-IDF &amp; embeddings</td></tr>
+          <tr><td class="layer">Data</td><td class="tech">Pandas / NumPy</td><td class="purpose">Dataset loading, transformation, feature engineering</td></tr>
+          <tr><td class="layer">Anomaly detection</td><td class="tech">Isolation Forest, SciPy</td><td class="purpose">Behavioral anomaly scoring in the profiling engine</td></tr>
+        </tbody>
+      </table>
+
+      <div style="margin-top:38px;">
+        <div class="eyebrow" style="margin-bottom:10px;">Candidate classifiers</div>
+        <div class="model-chips">
+          <span class="chip"><b>Logistic Regression</b> — fast, interpretable baseline · 98.65% acc.</span>
+          <span class="chip"><b>Random Forest</b> — ensemble of decision trees · 97.56% acc.</span>
+          <span class="chip"><b>SVM</b> — applied to the TF-IDF feature space · 98.89% acc.</span>
+          <span class="chip"><b>LSTM</b> — sequential context over word embeddings · 91.74% acc.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       EVALUATION
+       ============================================================ -->
+  <section class="section" id="results">
+    <div class="wrap">
+      <div class="eyebrow kicker">Evaluation results</div>
+      <h2>Real numbers, on a real dataset</h2>
+      <p class="lede">All four classifiers were trained and tested on the Enron-Spam dataset — 33,345 real emails, held out 80/20 with stratified sampling. Spam is used as the phishing-class proxy, the standard substitution in the literature this project cites.</p>
+
+      <table class="stack-table">
+        <thead>
+          <tr><th>Model</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1</th><th>AUC</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="layer">SVM</td><td class="tech">98.89%</td><td class="tech">98.64%</td><td class="tech">99.17%</td><td class="tech">98.91%</td><td class="tech">99.91%</td></tr>
+          <tr><td class="layer">Logistic Regression</td><td class="tech">98.65%</td><td class="tech">97.95%</td><td class="tech">99.41%</td><td class="tech">98.67%</td><td class="tech">99.85%</td></tr>
+          <tr><td class="layer">Random Forest</td><td class="tech">97.56%</td><td class="tech">95.70%</td><td class="tech">99.64%</td><td class="tech">97.63%</td><td class="tech">99.79%</td></tr>
+          <tr><td class="layer">LSTM</td><td class="tech">91.74%</td><td class="tech">96.38%</td><td class="tech">86.91%</td><td class="tech">91.40%</td><td class="tech">96.11%</td></tr>
+          <tr><td class="layer">URL model <span style="color:var(--text-dim); font-weight:400;">(UCI dataset)</span></td><td class="tech">86.75%</td><td class="tech">92.49%</td><td class="tech">80.00%</td><td class="tech">85.79%</td><td class="tech">92.56%</td></tr>
+        </tbody>
+      </table>
+
+      <div class="pending-note">
+        <b>SVM narrowly leads on this dataset, with Logistic Regression close behind at a fraction of the training cost.</b>
+        The LSTM was trained from scratch for 2 epochs on modest hardware in this environment — it would likely close
+        the gap with more epochs, a larger embedding, or pretrained vectors, but that's a fair reflection of the
+        LSTM's higher data/compute appetite relative to the other three, not a bug. The URL model scores lower because
+        several of the UCI dataset's original features (domain age, web traffic rank, DNS records) require live
+        WHOIS/DNS lookups this offline demo can't perform — it's scored on URL-string features alone. Full methodology,
+        including the sender-behavior evaluation, is in <span class="mono">backend/README.md</span>.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       OBJECTIVES
+       ============================================================ -->
+  <section class="section" id="objectives">
+    <div class="wrap">
+      <div class="eyebrow kicker">Scorecard</div>
+      <h2>Objectives achieved</h2>
+      <ul class="obj-list">
+        <li class="obj-item"><span class="obj-check">✓</span><p><b>Content classifier —</b> four candidate models implemented and compared on the same feature space and split.</p></li>
+        <li class="obj-item"><span class="obj-check">✓</span><p><b>Feature extraction —</b> TF-IDF and embedding text features, metadata parsing, and lexical URL analysis.</p></li>
+        <li class="obj-item"><span class="obj-check">✓</span><p><b>Sender Behavior Profiling Engine —</b> per-sender baselines with Z-score and Isolation Forest anomaly scoring.</p></li>
+        <li class="obj-item"><span class="obj-check">✓</span><p><b>Compromise detection —</b> evaluated against simulated compromised-account scenarios.</p></li>
+        <li class="obj-item"><span class="obj-check">✓</span><p><b>Demonstration interface —</b> a Flask prototype for submission, review, and profile inspection.</p></li>
+        <li class="obj-item"><span class="obj-check">✓</span><p><b>Performance evaluation —</b> accuracy, precision, recall, F1, AUC, plus behavioral anomaly metrics.</p></li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-left">
+      <b>AI-Enhanced Phishing Email Detection</b><br>
+      Amman Arab University — College of Information Technology<br>
+      B.Sc. Cybersecurity, 2025/2026
+    </div>
+    <div class="foot-right">
+      Prototype for academic demonstration.<br>
+      Not connected to a live mail server.
+    </div>
+  </div>
+</footer>
+
+<script>
+/* ================================================================
+   TRIAGE CONSOLE — a simplified, client-side stand-in for the
+   real pipeline described in the report (Feature Extraction Module
+   + ML Classifier + Sender Behavior Profiling Engine + fusion).
+
+   This is a readable, rule-based approximation for demonstration
+   purposes only — the actual system trains Scikit-learn / TensorFlow
+   models on the Enron and UCI datasets, as described on this page.
+   ================================================================ */
+
+// ---- backend connection -----------------------------------------
+// The real pipeline (Feature Extraction Module + trained classifier +
+// Sender Behavior Profiling Engine) runs as a separate Flask API —
+// see /backend in the project files. This page works two ways:
+//   - backend running locally  -> calls the real Python pipeline
+//   - backend not running      -> falls back to the JS approximation
+//     below, so the demo still works when this file is opened on its own
+//
+// DEPLOYING: change BACKEND_URL to your deployed API's URL, and set
+// BACKEND_API_KEY if the backend was deployed with an API_KEY set
+// (see backend/README.md "Deploying this").
+const BACKEND_URL = "http://127.0.0.1:5000";
+const BACKEND_API_KEY = ""; // e.g. "your-long-random-string" — leave blank if the backend has no API_KEY set
+let backendAvailable = false;
+
+async function checkBackend() {
+  const statusEl = document.getElementById("backendStatus");
+  try {
+    const res = await fetch(BACKEND_URL + "/api/health", { signal: AbortSignal.timeout(1500) });
+    if (!res.ok) throw new Error("bad response");
+    backendAvailable = true;
+    statusEl.className = "status live";
+    statusEl.innerHTML = '<span class="light"></span>backend connected';
+  } catch (err) {
+    backendAvailable = false;
+    statusEl.className = "status local";
+    statusEl.innerHTML = '<span class="light"></span>local demo mode (backend offline)';
+  }
+}
+checkBackend();
+
+// Calls the real Flask API. Throws if the request fails, so the
+// caller can fall back to the local heuristic.
+async function analyzeWithBackend(emailText, senderId, modelName) {
+  const headers = { "Content-Type": "application/json" };
+  if (BACKEND_API_KEY) headers["X-API-Key"] = BACKEND_API_KEY;
+
+  const res = await fetch(BACKEND_URL + "/api/analyze", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ email_text: emailText, sender_id: senderId, model: modelName }),
+    signal: AbortSignal.timeout(4000),
+  });
+  if (!res.ok) throw new Error("backend request failed");
+  return res.json();
+}
+
+// ---- sample emails for the "load sample" buttons ----------------
+const SAMPLES = {
+  legit: `Hi team,
+
+Quick reminder that the Q3 budget review is scheduled for Thursday
+at 10am in the usual conference room. Please send your slides to
+me by Wednesday evening so I can compile the deck.
+
+Thanks,
+Sarah`,
+
+  phish: `URGENT: Your account has been suspended!
+
+Dear Customer, we detected unusual activity on your account.
+Click here immediately to verify your identity or your account
+will be permanently suspended within 24 hours:
+
+http://192.168.44.10/secure-verify-login
+
+Act now to avoid losing access. This is your final notice.`,
+
+  compromised: `Hey, quick favor — I'm stuck in a meeting and need you to
+process an urgent wire transfer before end of day. Can't talk right
+now, just reply here and I'll send the account details. Please keep
+this between us for now, it's a bit sensitive.
+
+Thanks,
+David`
+};
+
+// ---- sender baselines (stand-ins for the profiling engine's
+//      historical data — normally built from months of real mail) --
+const SENDER_PROFILES = {
+  known_hr:  { label: "hr@trilocor-corp.com",         history: 240, typicalHour: [9, 17], urgencyBaseline: 0.05 },
+  known_it:  { label: "it-support@trilocor-corp.com", history: 180, typicalHour: [8, 18], urgencyBaseline: 0.10 },
+  unknown:   { label: "unlisted-sender@external.com", history: 0,   typicalHour: [0, 23], urgencyBaseline: 0.30 }
+};
+
+// ---- 1. FEATURE EXTRACTION -----------------------------------
+// Pull a handful of simple, explainable signals out of the raw text.
+function extractContentFeatures(text) {
+  const lower = text.toLowerCase();
+
+  const urgencyWords = [
+    "urgent", "immediately", "verify", "suspended", "click here",
+    "act now", "final notice", "confirm your account", "limited time",
+    "password", "wire transfer", "keep this between us"
+  ];
+  const urgencyHits = urgencyWords.filter(w => lower.includes(w));
+
+  const urls = text.match(/https?:\/\/[^\s]+/g) || [];
+  const hasIpUrl = urls.some(u => /https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(u));
+
+  const exclamations = (text.match(/!/g) || []).length;
+  const upperWords = (text.match(/\b[A-Z]{4,}\b/g) || []).length;
+
+  return { urgencyHits, urlCount: urls.length, hasIpUrl, exclamations, upperWords };
+}
+
+// ---- 2. CONTENT CLASSIFIER (rule-based stand-in) ---------------
+// Weighted sum of the extracted features, normalized to 0–100.
+function scoreContent(features) {
+  let score = 0;
+  score += features.urgencyHits.length * 14;
+  score += features.hasIpUrl ? 30 : 0;
+  score += features.urlCount > 0 && !features.hasIpUrl ? 6 : 0;
+  score += Math.min(features.exclamations, 4) * 4;
+  score += Math.min(features.upperWords, 3) * 5;
+  return Math.max(0, Math.min(100, score));
+}
+
+// ---- 3. SENDER BEHAVIOR PROFILING ENGINE (rule-based stand-in) -
+// Compares the current message against the sender's known baseline.
+function scoreBehavior(profile, features) {
+  let score = 0;
+
+  // No history at all is itself a mild risk factor.
+  if (profile.history === 0) score += 25;
+
+  // A message from a "known, calm" sender that suddenly reads as
+  // urgent looks like the account-compromise pattern the engine
+  // is designed to catch.
+  const urgencyRatio = features.urgencyHits.length / 6;
+  if (urgencyRatio > profile.urgencyBaseline + 0.2) {
+    score += 35;
+  }
+
+  // Established senders asking for secrecy or wire transfers is a
+  // classic compromised-account signal, independent of urgency words.
+  if (profile.history > 0 && features.urgencyHits.some(w => w.includes("wire") || w.includes("between us"))) {
+    score += 25;
+  }
+
+  return Math.max(0, Math.min(100, score));
+}
+
+// ---- 4. DECISION FUSION ----------------------------------------
+// Combine both signals into one final verdict, roughly matching the
+// report's "either signal can trigger a flag" fusion logic.
+function fuseDecision(contentScore, behaviorScore) {
+  const finalScore = Math.max(contentScore, behaviorScore * 0.9);
+  let verdict = "legit";
+  if (finalScore >= 65) verdict = "phishing";
+  else if (finalScore >= 35) verdict = "suspicious";
+  return { finalScore, verdict };
+}
+
+// ---- rendering ---------------------------------------------------
+function renderResult(features, contentScore, behaviorScore, fused) {
+  const badge = document.getElementById("verdictBadge");
+  const conf = document.getElementById("verdictConf");
+
+  const labels = { legit: "LEGITIMATE", suspicious: "SUSPICIOUS", phishing: "PHISHING" };
+  badge.textContent = labels[fused.verdict];
+  badge.className = "verdict-badge " + fused.verdict;
+  conf.textContent = "confidence " + Math.round(fused.finalScore) + "%";
+
+  document.getElementById("contentScoreLabel").textContent = Math.round(contentScore);
+  document.getElementById("behaviorScoreLabel").textContent = Math.round(behaviorScore);
+  document.getElementById("contentMeter").style.width = contentScore + "%";
+  document.getElementById("behaviorMeter").style.width = behaviorScore + "%";
+
+  const list = document.getElementById("featureList");
+  list.innerHTML = `
+    <div>Urgency phrases: <span class="${features.urgencyHits.length ? 'hit' : ''}">${features.urgencyHits.length}</span></div>
+    <div>URLs found: <span>${features.urlCount}</span></div>
+    <div>IP-based link: <span class="${features.hasIpUrl ? 'hit' : ''}">${features.hasIpUrl ? 'yes' : 'no'}</span></div>
+    <div>Exclamation marks: <span>${features.exclamations}</span></div>
+  `;
+
+  document.getElementById("result").classList.add("show");
+}
+
+// ---- wiring --------------------------------------------------
+document.querySelectorAll(".sample-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.getElementById("emailInput").value = SAMPLES[btn.dataset.sample];
+  });
+});
+
+document.getElementById("analyzeBtn").addEventListener("click", async () => {
+  const text = document.getElementById("emailInput").value.trim();
+  if (!text) {
+    document.getElementById("emailInput").focus();
+    return;
+  }
+  const senderId = document.getElementById("senderSelect").value;
+  const modelName = document.getElementById("modelSelect").value;
+  const btn = document.getElementById("analyzeBtn");
+
+  btn.disabled = true;
+  btn.textContent = "▶ Analyzing…";
+
+  try {
+    if (backendAvailable) {
+      // Real pipeline: TF-IDF + selected classifier (trained on the
+      // real Enron-Spam dataset), Z-score + Isolation Forest behavior
+      // engine, decision fusion.
+      const result = await analyzeWithBackend(text, senderId, modelName);
+      renderResult(
+        {
+          urgencyHits: result.features.urgency_hits,
+          urlCount: result.features.url_count,
+          hasIpUrl: result.features.has_ip_url,
+          exclamations: result.features.exclamation_count,
+        },
+        result.content.score,
+        result.behavior.score,
+        { finalScore: result.final_score, verdict: result.verdict }
+      );
+    } else {
+      throw new Error("backend not available");
+    }
+  } catch (err) {
+    // Fall back to the local, rule-based approximation.
+    const profile = SENDER_PROFILES[senderId];
+    const features = extractContentFeatures(text);
+    const contentScore = scoreContent(features);
+    const behaviorScore = scoreBehavior(profile, features);
+    const fused = fuseDecision(contentScore, behaviorScore);
+    renderResult(features, contentScore, behaviorScore, fused);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "▶ Run classification";
+  }
+});
+</script>
+
+</body>
+</html>

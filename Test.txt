@@ -1,0 +1,114 @@
+Subject: Urgent: Account Verification Required
+
+Dear Customer,
+
+We have detected unusual activity on your account. For your security, 
+your access has been temporarily suspended.
+
+To restore full access, please verify your identity immediately by 
+clicking the link below:
+
+http://192.168.44.10/secure-verify-login
+
+Failure to verify within 24 hours will result in permanent suspension 
+of your account. This is your final notice.
+
+Thank you for your prompt attention to this matter.
+
+Security Team
+
+
+-----------------
+
+Hi team,
+
+Quick reminder that the Q3 budget review is scheduled for Thursday 
+at 10am in the usual conference room. Please send your slides to 
+me by Wednesday evening so I can compile the deck.
+
+Thanks,
+Sarah
+
+
+-------
+
+
+
+-------
+
+
+Subject: Congratulations! You've Been Selected
+
+Dear Winner,
+
+Your email address has been selected in our monthly rewards draw! 
+You have won a prize package worth $2,500.
+
+Click here immediately to claim your prize before it expires:
+http://prize-claim-center.info/winner?id=48291
+
+This offer is valid for 24 hours only. Act now!
+
+
+
+-----------
+
+Subject: Action Required: Password Expiring
+
+Dear User,
+
+Your network password will expire in 24 hours. To avoid being 
+locked out of your account, please verify and reset your password 
+immediately by clicking here:
+
+http://192.168.10.55/password-reset
+
+Failure to act may result in loss of access to email, shared drives, 
+and internal systems.
+
+IT Support
+
+
+
+--------
+
+Hi, are you at your desk? I need you to handle something confidential 
+for me right now. I'm in back-to-back meetings and can't call. Please 
+process a wire transfer to a vendor today — I'll send the account 
+details shortly. Keep this between us for now, I'll explain later.
+
+Thanks,
+
+
+
+--------
+
+Hi everyone,
+
+Just a reminder that open enrollment for benefits closes this Friday. 
+If you haven't submitted your selections yet, please log into the 
+HR portal and complete it before end of day.
+
+Let me know if you have any questions.
+
+Best,
+HR Team
+
+
+-----
+
+
+Hi team,
+
+Here's the link to the shared project tracker we discussed: 
+https://docs.google.com/spreadsheets/d/1aBcD_example
+
+Let me know if you have trouble accessing it.
+
+Thanks,
+Priya
+
+
+
+
+
